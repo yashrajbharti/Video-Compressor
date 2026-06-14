@@ -1,6 +1,6 @@
 # Video Compressor 🎥
 
-![Cover photo](/icon.png)
+![Cover photo](/icon-256.png)
 
 A native, lightweight macOS desktop application that performs mathematically **lossless video compression** using FFmpeg. Built with Python, Tkinter, and `tkinterdnd2`, it features a modern dark-themed GUI, drag-and-drop support, and a live visual progress indicator.
 
