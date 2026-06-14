@@ -18,8 +18,13 @@ class LosslessApp:
         self.bg_color = "#0e1012"
         self.fg_color = "#EDEDED"
         self.accent_color = "#5667F5" # Purple from SVG
-        self.font = ("Roboto", 14)
+        self.font = ("Roboto", 17)      # Clean, large text
         self.root.configure(bg=self.bg_color)
+        
+        # Smooth interpolation variables
+        self.target_percentage = 0.0
+        self.display_percentage = 0.0
+        self.is_compressing = False
         
         # macOS optimization: Support drag and drop onto the application icon in Dock/Finder
         try:
@@ -52,7 +57,6 @@ class LosslessApp:
         self.root.dnd_bind('<<Drop>>', self.handle_dnd_drop)
         
         self.draw_idle_icon()
-        self.is_compressing = False
         
     def draw_idle_icon(self):
         self.canvas.delete("all")
@@ -63,6 +67,24 @@ class LosslessApp:
             # Fallback
             self.canvas.create_text(cx, cy, text="ICON", fill=self.fg_color, font=self.font)
         
+    def smooth_update_loop(self):
+        """High-frequency 60FPS loop that smoothly glides the UI to the target value"""
+        if not self.is_compressing:
+            return
+
+        diff = self.target_percentage - self.display_percentage
+        
+        if abs(diff) > 0.05:
+            self.display_percentage += diff * 0.1
+        else:
+            self.display_percentage = self.target_percentage
+
+        # Render the current state of the glide
+        self.draw_loader(self.display_percentage)
+
+        # Schedule next frame update in 16ms (~60 frames per second)
+        self.root.after(16, self.smooth_update_loop)
+
     def draw_loader(self, percentage):
         self.canvas.delete("all")
         cx, cy = 225, 140
@@ -73,8 +95,8 @@ class LosslessApp:
         extent = -(percentage / 100.0) * 359.99
         if extent != 0:
             self.canvas.create_arc(cx-r, cy-r, cx+r, cy+r, start=90, extent=extent, style=tk.ARC, outline=self.accent_color, width=6)
-        # Percentage text
-        self.canvas.create_text(cx, cy, text=f"{percentage}%", fill=self.fg_color, font=("Roboto", 30, "bold"))
+        # Percentage text 
+        self.canvas.create_text(cx, cy, text=f"{int(percentage)}%", fill=self.fg_color, font=("Roboto", 38, "bold"))
         
     def draw_done_icon(self):
         self.canvas.delete("all")
@@ -107,8 +129,12 @@ class LosslessApp:
     def process_file(self, file_path):
         if os.path.isfile(file_path):
             self.is_compressing = True
-            self.draw_loader(0)
+            self.target_percentage = 0.0
+            self.display_percentage = 0.0
             self.status_label.config(text="Compressing...")
+            
+            # Fire up the rendering loops
+            self.smooth_update_loop()
             threading.Thread(target=self.compress_video, args=(file_path,), daemon=True).start()
 
     def get_duration(self, file_path):
@@ -145,10 +171,9 @@ class LosslessApp:
                 if match:
                     hours, minutes, seconds = map(float, match.groups())
                     current_time = (hours * 3600) + (minutes * 60) + seconds
-                    percentage = min(int((current_time / total_duration) * 100), 100)
                     
-                    # Update UI safely
-                    self.root.after(0, self.draw_loader, percentage)
+                    # Update target percentage with rounding to stay precise
+                    self.target_percentage = min(round((current_time / total_duration) * 100), 100)
                 buffer = ""
             else:
                 buffer += char
@@ -156,17 +181,27 @@ class LosslessApp:
         process.wait()
         
         if process.returncode == 0:
-            self.root.after(0, self.finish_success, output_path)
+            # Overrule thread values to hold a true 100% state
+            self.target_percentage = 100.0
+            self.display_percentage = 100.0
+            
+            # Force target layout re-paint right onto the main thread safely
+            self.root.after_idle(lambda: self.draw_loader(100.0))
+            
+            # Give UI thread a 400ms visual buffer to draw 100% before popup interrupts
+            self.root.after(400, self.finish_success, output_path)
         else:
             self.root.after(0, self.finish_error)
 
     def finish_success(self, output_path):
+        self.is_compressing = False
         self.draw_done_icon()
         self.status_label.config(text="Compression Complete!")
         messagebox.showinfo("Success", f"Lossless video saved to:\n{output_path}")
         self.reset_ui()
         
     def finish_error(self):
+        self.is_compressing = False
         self.draw_idle_icon()
         self.status_label.config(text="Compression Failed.")
         messagebox.showerror("Error", "Compression failed. Check if FFmpeg is installed.")
