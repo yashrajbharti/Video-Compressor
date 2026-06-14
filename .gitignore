@@ -1,0 +1,29 @@
+# --- macOS System Files ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# --- py2app Build & Distribution Output ---
+# These folders contain the final compiled Mac app bundles (.app).
+# They are too large for Git and change with every local compile.
+build/
+dist/
+
+# --- Python Environment & Caches ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+conda-env/
+
+# --- IDEs and Text Editors ---
+.project
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
