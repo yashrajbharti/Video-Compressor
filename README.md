@@ -31,7 +31,7 @@ To run or build this application, the host Mac must have **FFmpeg** installed vi
 
 If you just want to use the app without setting up a development environment:
 
-1. Go to the [**Latest Release**](https://github.com/yashrajbharti/Video-Compressor/releases/tag/1.0.0).
+1. Go to the [**Latest Release**](https://github.com/yashrajbharti/Video-Compressor/releases/tag/2.0.0).
 2. Download the `Video Compressor.zip` file.
 3. Unzip the file and move the `Video Compressor.app` to your **Applications** folder.
 
