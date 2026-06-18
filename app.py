@@ -138,12 +138,27 @@ class LosslessApp:
             threading.Thread(target=self.compress_video, args=(file_path,), daemon=True).start()
 
     def get_duration(self, file_path):
+        # Try format duration first
         cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
         try:
             res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.get_env())
-            return float(res.stdout.strip())
+            val = res.stdout.strip()
+            if val and val != "N/A":
+                return float(val)
         except:
-            return 1.0
+            pass
+            
+        # Try stream duration next if format duration fails/returns N/A
+        cmd = ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
+        try:
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.get_env())
+            val = res.stdout.strip()
+            if val and val != "N/A":
+                return float(val)
+        except:
+            pass
+            
+        return 1.0
 
     def get_env(self):
         env = os.environ.copy()
@@ -159,7 +174,7 @@ class LosslessApp:
         cmd = ["ffmpeg", "-y", "-i", input_path, "-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0", "-c:a", "libopus", output_path]
         process = subprocess.Popen(cmd, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True, env=self.get_env())
         
-        time_regex = re.compile(r"time=(\d+):(\d+):(\d+\.\d+)")
+        time_regex = re.compile(r"time=(\d+):(\d+):(\d+(?:\.\d+)?)")
         buffer = ""
         
         while True:
