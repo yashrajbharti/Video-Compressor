@@ -122,7 +122,7 @@ class LosslessApp:
     def browse_file(self, event=None):
         if self.is_compressing: return
         from tkinter import filedialog
-        file_path = filedialog.askopenfilename(filetypes=[("Video Files", "*.mp4 *.mov *.avi *.mkv *.*")])
+        file_path = filedialog.askopenfilename(filetypes=[("Video Files", "*.mp4 *.mov *.avi *.mkv *.webm *.*")])
         if file_path:
             self.process_file(file_path)
 
@@ -153,10 +153,10 @@ class LosslessApp:
     def compress_video(self, input_path):
         dir_name = os.path.dirname(input_path)
         base_name = os.path.splitext(os.path.basename(input_path))[0]
-        output_path = os.path.join(dir_name, f"{base_name}_lossless.mp4")
+        output_path = os.path.join(dir_name, f"{base_name}_compressed.webm")
         
         total_duration = self.get_duration(input_path)
-        cmd = ["ffmpeg", "-y", "-i", input_path, "-c:v", "libx264", "-crf", "0", "-c:a", "copy", output_path]
+        cmd = ["ffmpeg", "-y", "-i", input_path, "-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0", "-c:a", "libopus", output_path]
         process = subprocess.Popen(cmd, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True, env=self.get_env())
         
         time_regex = re.compile(r"time=(\d+):(\d+):(\d+\.\d+)")
@@ -197,7 +197,7 @@ class LosslessApp:
         self.is_compressing = False
         self.draw_done_icon()
         self.status_label.config(text="Compression Complete!")
-        messagebox.showinfo("Success", f"Lossless video saved to:\n{output_path}")
+        messagebox.showinfo("Success", f"Compressed WebM video saved to:\n{output_path}")
         self.reset_ui()
         
     def finish_error(self):

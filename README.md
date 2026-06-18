@@ -2,13 +2,13 @@
 
 ![Cover photo](/icon-256.png)
 
-A native, lightweight macOS desktop application that performs mathematically **lossless video compression** using FFmpeg. Built with Python, Tkinter, and `tkinterdnd2`, it features a modern dark-themed GUI, drag-and-drop support, and a live visual progress indicator.
+A native, lightweight macOS desktop application that performs high-efficiency **WebM video compression** using FFmpeg. Built with Python, Tkinter, and `tkinterdnd2`, it features a modern dark-themed GUI, drag-and-drop support, and a live visual progress indicator.
 
 ## ✨ Features
-* **100% Lossless Compression:** Uses `libx264` with `-crf 0` to compress videos mathematically without losing a single pixel of quality.
+* **High-Efficiency WebM Compression:** Uses `libvpx-vp9` with `-crf 30` and `-b:v 0` to significantly compress videos while preserving excellent visual quality.
 * **Streamlined Drag & Drop:** Drag files directly from macOS Finder into the app window, or onto the application Dock icon.
 * **Modern Dark UI:** Clean, minimalistic interface with an animated circular progress loader and success triggers.
-* **Audio Preservation:** Audio streams are copied exactly (`-c:a copy`) to guarantee zero quality degradation.
+* **WebM Compatible Audio:** Transcodes audio streams to standard `libopus` to guarantee native browser playability and excellent quality.
 
 ---
 
