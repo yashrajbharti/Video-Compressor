@@ -41,7 +41,7 @@ If you just want to use the app without setting up a development environment:
 
 Because this app is compiled locally and not signed with a paid Apple Developer certificate, modern macOS versions will show an alert with only two choices: **"Done"** or **"Move to Bin"**.
 
-Via CLI you can try: ` xattr -dr com.apple.quarantine /Applications/Video\ Compressor.app`.
+Via CLI you can try: `xattr -dr com.apple.quarantine /Applications/Video\ Compressor.app`.
 
 Via GUI, to open the app safely without moving it to the trash:
 1. Double-click the app, see the warning, and click **Done** to dismiss the box.
