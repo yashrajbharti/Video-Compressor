@@ -174,7 +174,10 @@ class LosslessApp:
         cmd = ["ffmpeg", "-y", "-i", input_path, "-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0", "-c:a", "libopus", output_path]
         process = subprocess.Popen(cmd, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True, env=self.get_env())
         
-        time_regex = re.compile(r"time=(\d+):(\d+):(\d+(?:\.\d+)?)")
+        # Match time stamps (supporting potential negative offsets like time=-00:00:01.00)
+        time_regex = re.compile(r"time=(-?\d+):(\d+):(\d+(?:\.\d+)?)")
+        # Match total duration from the input stream metadata printed by FFmpeg
+        duration_regex = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
         buffer = ""
         
         while True:
@@ -182,13 +185,24 @@ class LosslessApp:
             if not char and process.poll() is not None: break
             
             if char in ('\r', '\n'):
+                # Extract duration dynamically from FFmpeg output if not already successfully retrieved
+                dur_match = duration_regex.search(buffer)
+                if dur_match:
+                    hours, minutes, seconds = map(float, dur_match.groups())
+                    parsed_dur = (hours * 3600) + (minutes * 60) + seconds
+                    if parsed_dur > 0:
+                        total_duration = parsed_dur
+
                 match = time_regex.search(buffer)
                 if match:
                     hours, minutes, seconds = map(float, match.groups())
                     current_time = (hours * 3600) + (minutes * 60) + seconds
+                    # Clamp current_time to non-negative values
+                    current_time = max(0.0, current_time)
                     
-                    # Update target percentage with rounding to stay precise
-                    self.target_percentage = min(round((current_time / total_duration) * 100), 100)
+                    # Update target percentage with rounding to stay precise (avoid division by zero)
+                    if total_duration > 0:
+                        self.target_percentage = min(round((current_time / total_duration) * 100), 100)
                 buffer = ""
             else:
                 buffer += char
