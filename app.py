@@ -141,7 +141,7 @@ class LosslessApp:
         # Try format duration first
         cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
         try:
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.get_env())
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace", env=self.get_env())
             val = res.stdout.strip()
             if val and val != "N/A":
                 return float(val)
@@ -151,7 +151,7 @@ class LosslessApp:
         # Try stream duration next if format duration fails/returns N/A
         cmd = ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", file_path]
         try:
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=self.get_env())
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace", env=self.get_env())
             val = res.stdout.strip()
             if val and val != "N/A":
                 return float(val)
@@ -172,40 +172,34 @@ class LosslessApp:
         
         total_duration = self.get_duration(input_path)
         cmd = ["ffmpeg", "-y", "-i", input_path, "-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0", "-c:a", "libopus", output_path]
-        process = subprocess.Popen(cmd, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True, env=self.get_env())
+        # Use bufsize=1 and errors="replace" for line buffering and safety
+        process = subprocess.Popen(cmd, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True, bufsize=1, errors="replace", env=self.get_env())
         
         # Match time stamps (supporting potential negative offsets like time=-00:00:01.00)
         time_regex = re.compile(r"time=(-?\d+):(\d+):(\d+(?:\.\d+)?)")
         # Match total duration from the input stream metadata printed by FFmpeg
         duration_regex = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
-        buffer = ""
         
-        while True:
-            char = process.stdout.read(1)
-            if not char and process.poll() is not None: break
-            
-            if char in ('\r', '\n'):
-                # Extract duration dynamically from FFmpeg output if not already successfully retrieved
-                dur_match = duration_regex.search(buffer)
-                if dur_match:
-                    hours, minutes, seconds = map(float, dur_match.groups())
-                    parsed_dur = (hours * 3600) + (minutes * 60) + seconds
-                    if parsed_dur > 0:
-                        total_duration = parsed_dur
+        # Read the line-buffered output line-by-line in real-time
+        for line in process.stdout:
+            # Extract duration dynamically from FFmpeg output if not already successfully retrieved
+            dur_match = duration_regex.search(line)
+            if dur_match:
+                hours, minutes, seconds = map(float, dur_match.groups())
+                parsed_dur = (hours * 3600) + (minutes * 60) + seconds
+                if parsed_dur > 0:
+                    total_duration = parsed_dur
 
-                match = time_regex.search(buffer)
-                if match:
-                    hours, minutes, seconds = map(float, match.groups())
-                    current_time = (hours * 3600) + (minutes * 60) + seconds
-                    # Clamp current_time to non-negative values
-                    current_time = max(0.0, current_time)
-                    
-                    # Update target percentage with rounding to stay precise (avoid division by zero)
-                    if total_duration > 0:
-                        self.target_percentage = min(round((current_time / total_duration) * 100), 100)
-                buffer = ""
-            else:
-                buffer += char
+            match = time_regex.search(line)
+            if match:
+                hours, minutes, seconds = map(float, match.groups())
+                current_time = (hours * 3600) + (minutes * 60) + seconds
+                # Clamp current_time to non-negative values
+                current_time = max(0.0, current_time)
+                
+                # Update target percentage with rounding to stay precise (avoid division by zero)
+                if total_duration > 0:
+                    self.target_percentage = min(round((current_time / total_duration) * 100), 100)
                 
         process.wait()
         
