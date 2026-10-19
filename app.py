@@ -165,13 +165,50 @@ class LosslessApp:
         env["PATH"] = f"/opt/homebrew/bin:/usr/local/bin:{env.get('PATH', '')}"
         return env
 
+    def get_compression_cmd(self, input_path, output_path):
+        env = self.get_env()
+        # Probe audio codec to safely copy or transcode
+        audio_codec = ""
+        try:
+            probe_cmd = ["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=codec_name", "-of", "default=noprint_wrappers=1:nokey=1", input_path]
+            res = subprocess.run(probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+            audio_codec = res.stdout.strip().lower()
+        except Exception:
+            pass
+
+        if audio_codec in ["aac", "mp3", "ac3", "alac"]:
+            audio_args = ["-c:a", "copy"]
+        else:
+            audio_args = ["-c:a", "aac", "-b:a", "128k"]
+
+        # Detect best available hardware / software encoder
+        try:
+            enc_res = subprocess.run(["ffmpeg", "-encoders"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+            encoders_text = enc_res.stdout
+        except Exception:
+            encoders_text = ""
+
+        # Priority 1: Hardware-accelerated HEVC on macOS (VideoToolbox) - fastest & highest compression (~70% reduction)
+        if "hevc_videotoolbox" in encoders_text:
+            video_args = ["-c:v", "hevc_videotoolbox", "-q:v", "50", "-tag:v", "hvc1"]
+        # Priority 2: Hardware-accelerated H.264 on macOS
+        elif "h264_videotoolbox" in encoders_text:
+            video_args = ["-c:v", "h264_videotoolbox", "-q:v", "55"]
+        # Priority 3: Software multi-threaded H.264 (universal fallback)
+        elif "libx264" in encoders_text:
+            video_args = ["-c:v", "libx264", "-crf", "22", "-preset", "medium", "-pix_fmt", "yuv420p"]
+        else:
+            video_args = ["-c:v", "libvpx-vp9", "-crf", "36", "-b:v", "0", "-row-mt", "1", "-threads", "auto"]
+
+        return ["ffmpeg", "-y", "-i", input_path] + video_args + audio_args + ["-movflags", "+faststart", output_path]
+
     def compress_video(self, input_path):
         dir_name = os.path.dirname(input_path)
         base_name = os.path.splitext(os.path.basename(input_path))[0]
-        output_path = os.path.join(dir_name, f"{base_name}_compressed.webm")
+        output_path = os.path.join(dir_name, f"{base_name}_compressed.mp4")
         
         total_duration = self.get_duration(input_path)
-        cmd = ["ffmpeg", "-y", "-i", input_path, "-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0", "-c:a", "libopus", output_path]
+        cmd = self.get_compression_cmd(input_path, output_path)
         # Use bufsize=1 and errors="replace" for line buffering and safety
         process = subprocess.Popen(cmd, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, text=True, bufsize=1, errors="replace", env=self.get_env())
         
@@ -220,7 +257,7 @@ class LosslessApp:
         self.is_compressing = False
         self.draw_done_icon()
         self.status_label.config(text="Compression Complete!")
-        messagebox.showinfo("Success", f"Compressed WebM video saved to:\n{output_path}")
+        messagebox.showinfo("Success", f"Compressed MP4 video saved to:\n{output_path}")
         self.reset_ui()
         
     def finish_error(self):
